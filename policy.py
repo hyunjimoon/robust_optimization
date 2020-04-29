@@ -6,37 +6,30 @@ import statsmodels.formula.api as smf
 #d: demand(pd.series)
 
 def interval_div_q(d, p, c, s):
-    def cost(q, d, p, c, s):
-        underage_cost = p - c
-        overage_cost = c - s
-        cost = max((q - d), 0) * overage_cost + max((d - q), 0) * underage_cost
-        return cost
-
-    def worst_interval_cand(d, p, c, s):
-        I = int(int(d.shape[0]) * 0.3)  #TODO I = int(np.log(emp_dist.shape[0])) 등 실험
-        se = [pd.qcut(d, I, duplicates='drop').values[i] for i in range(I)]
-        worst_cand_lst = list()
-        for interval in se:
+    def E_cost_I(q, se_I, p, c, s):
+        cost = 0
+        for interval in se_I:
             start, end = int(interval.left), int(interval.right)
-            mid = ((c - s) / (p - s)) * start + ((p - c) / (p - s)) * end
-            worst_cand_lst.append([start, mid, end])
-        return np.unique(worst_cand_lst), se
+            if q > end:
+                cost += (q - start) * (c -s)
+            elif q < start:
+                cost += (end - q) * (p - c)
+            else:
+                cost += max((q - start) * (c -s), (end - q) * (p - c))
+        return cost / len(se_I)
 
-    def E_cost_D(q, d, p, c, s):
-        return np.mean([cost(q, i, p, c, s) for i in d])
+    I = int(int(d.shape[0]) * 0.3)  # TODO I = int(np.log(emp_dist.shape[0])) 등 실험
+    se = [pd.qcut(d, I, duplicates='drop').values[i] for i in range(I)]
 
-    def min_E_worst_q(d, p, c, s):
-        opt_q = 0
-        opt_cost = np.inf
-        cand = worst_interval_cand(d, p, c, s)[0]
-        for q in cand:
-            cand_cost = E_cost_D(q, d, p, c, s)
-            if opt_cost > cand_cost:
-                opt_cost = cand_cost
-                opt_q = q
-        return opt_q
+    worst_cand = dict()
+    for interval in se:
+        start, end = int(interval.left), int(interval.right)
+        mid = ((c - s) / (p - s)) * start + ((p - c) / (p - s)) * end
+        worst_cand[start] = E_cost_I(start, se, p, c, s)
+        worst_cand[mid] = E_cost_I(mid, se, p, c, s)
+        worst_cand[end] = E_cost_I(end, se, p, c, s)
 
-    return min_E_worst_q(d, p, c, s)
+    return min(worst_cand, key=worst_cand.get)
 
 
 def normal_ass_q(d, p, c, s):
