@@ -1,0 +1,11 @@
+Metadata-Version: 1.0
+Name: ma
+Version: 1.0.2
+Summary: Collection of tools and utilities. This is just a metapackage,
+    which depends on all other ma.x packages
+Home-page: UNKNOWN
+Author: Fredrik Haard
+Author-email: fredrik@metallapan.se
+License: UNKNOWN
+Description: UNKNOWN
+Platform: UNKNOWN
