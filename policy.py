@@ -18,16 +18,16 @@ def interval_div_q(d, p, c, s):
                 cost += max((q - start) * (c -s), (end - q) * (p - c))
         return cost / len(se_I)
 
-    I = int(int(d.shape[0]) * 0.3)  # TODO I = int(np.log(emp_dist.shape[0])) 등 실험
-    se = [pd.qcut(d, I, duplicates='drop').values[i] for i in range(I)]
+    L = int(int(d.shape[0]) * 0.3)  # TODO num_I = int(np.log(emp_dist.shape[0])) 등 실험
+    se_I = [pd.qcut(d, L, duplicates='drop').values[i] for i in range(L)]
 
     worst_cand = dict()
-    for interval in se:
+    for interval in se_I:
         start, end = int(interval.left), int(interval.right)
         mid = ((c - s) / (p - s)) * start + ((p - c) / (p - s)) * end
-        worst_cand[start] = E_cost_I(start, se, p, c, s)
-        worst_cand[mid] = E_cost_I(mid, se, p, c, s)
-        worst_cand[end] = E_cost_I(end, se, p, c, s)
+        worst_cand[start] = E_cost_I(start, se_I, p, c, s)
+        worst_cand[mid] = E_cost_I(mid, se_I, p, c, s)
+        worst_cand[end] = E_cost_I(end, se_I, p, c, s)
 
     return min(worst_cand, key=worst_cand.get)
 
