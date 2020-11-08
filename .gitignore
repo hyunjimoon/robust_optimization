@@ -1,0 +1,21 @@
+*
+**/.ipynb_checkpoints/
+!*/
+!.gitignore
+
+!*.stan
+!*.R
+!*.r
+!*.Rmd
+!*.rda
+!*.bib
+
+!*.csv
+
+!*.ipynb
+!*.py
+!*.md
+venv/ .vscode/
+
+# Visual Studio Project Setup
+.vscode/*
