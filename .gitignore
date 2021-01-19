@@ -15,7 +15,3 @@
 !*.ipynb
 !*.py
 !*.md
-venv/ .vscode/
-
-# Visual Studio Project Setup
-.vscode/*
