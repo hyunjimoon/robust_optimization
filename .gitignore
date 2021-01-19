@@ -1,6 +1,7 @@
 *
 **/.ipynb_checkpoints/
 !*/
+!*.pdf
 !.gitignore
 
 !*.stan
