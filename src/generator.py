@@ -5,20 +5,37 @@ from matplotlib import pyplot as plt
 # 모든 분포는 동일한 1) mean (가능하다면 variance), 2) sample 수를 가진다.
 np.random.seed(1)
 
-def get_demand(dist, mu, sd, n, **kwargs):
-    dist_df = pd.DataFrame()
-    if dist == 't':
-        dist_df['t'] = t_dist(mu, sd, n)
-    elif dist == 'norm':
-        dist_df['norm'] = normal_dist(mu, sd, n)
-    elif dist == 'gamma':
-        dist_df['gamma'] = gamma_dist(mu, sd, n)
-    elif dist == 'unif':
-        dist_df['unif'] = unif_dist(mu, sd, n)
-    elif dist == 'mm':
-        mu1, sd1, w1 = kwargs.values()  ## dict로 호출법?
-        dist_df[f'mm_{mu1}_{sd1}_{w1}'] = mixture_dist_12(mu1, sd1, mu2, sd2, w1, n)  # TODO mm parameters 변화실험
-    return dist_df.iloc[:, 0]
+def generator(theta_star, sigma_x, sigma_y, degree, dist, n):
+    '''
+    Generate data of 1.ground truth (deg=1, norm_dist), 2.(deg>1, norm_dist), 
+                     3.(deg = 1, !norm_dist), 3.(deg > 1, !norm_dist)
+
+    Parameters:
+        array theta_star: true parameter value
+        array sigma_x: array of length p, is the variance of each feature vector dimension, i.e. x_i ~ N(0, sigma_p)
+        float sigma_y: noise of outcome sampled as N(y_true, sigma_y)
+        int degree: `y_ture|x` str.  #MISSPEC1 degree 1 vs >1
+                    y_true = x-linear if degree =1, polynomial degree prop.to amount of model misspecification
+        chr dist: `y|y_ture` str. #MISSPEC2 normal_dist vs unif_dist, t_dist, gamma_dist, (TODO mm_dist)
+        int n: number of data points to generate
+        # x \sim N(0, sigma_x)
+        # y|x \sim N(y_true, sigma_y)
+        # (x,y) \sim Normal(??)
+    Returns:
+        np.array X: predictor data of dimension [n, p]
+        np.array y: outcome data of dimension [n, 1] = (1,p) * (p, n)
+    '''
+    # metadata
+    p = len(theta_star)
+    # Generate predictor: iid MVN with each ith col. predictors share `sigma_x[i]`
+    X = np.random.normal(loc = 0, scale = sigma_x, size = [n, p]) # each row is a training point of size p
+    def normal_dist(mu,sd, n):
+      return np.random.normal(mu, sd, size = n)
+    def unif_dist(mu, sd, n):
+      return np.random.uniform(mu - np.sqrt(3)*sd, mu + np.sqrt(3)*sd, n)
+    if dist == 'unif':
+      ys = [P(theta_star @ np.power(X, d).T, np.repeat(sigma_y, n), n) for P in (normal_dist, unif_dist) for d in (1, degree)]
+    return X, ys
 
 def gamma_dist(mu, sd, n):
     b = sd ** 2 / mu

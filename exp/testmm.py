@@ -1,5 +1,5 @@
 import itertools
-from demand_generator import get_demand
+from demand_generator import gen_data
 import pandas as pd
 import numpy as np
 from matplotlib import pyplot as plt
@@ -33,9 +33,9 @@ model = 'interval_div'
 for c in np.arange(10):
 # for mu1 in mu1s:
     demand_type = 'mm'
-    #dist = get_demand(demand_type, mu, sd, n)
-    dist = get_demand('mm', mu, sd, n, mu1=200, sd1=200/3, w1=.6)
-    # dist = get_demand('leather', 7920, 8405, 1)
+    #dist = gen_data(demand_type, mu, sd, n)
+    dist = gen_data('mm', mu, sd, n, mu1=200, sd1=200/3, w1=.6)
+    # dist = gen_data('leather', 7920, 8405, 1)
     pfs = [[m, calc_beta_dist_model_profit(betas, dist, m, p, s)] for m in models]
     NA = list()
     DF = list()

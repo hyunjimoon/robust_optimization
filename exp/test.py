@@ -1,5 +1,5 @@
 # import itertools
-# from demand_generator import get_demand
+# from demand_generator import gen_data
 # import pandas as pd
 # import numpy as np
 # from matplotlib import pyplot as plt
@@ -28,9 +28,9 @@
 # ############
 #
 # demand_type = 'normal'
-# dist = get_demand(demand_type, mu, sd, n)
-# #dist = get_demand('mm', mu, sd, n, mu1=300, sd1=300 / 4, w1=.4)
-# # dist = get_demand('leather', 7920, 8405, 1)
+# dist = gen_data(demand_type, mu, sd, n)
+# #dist = gen_data('mm', mu, sd, n, mu1=300, sd1=300 / 4, w1=.4)
+# # dist = gen_data('leather', 7920, 8405, 1)
 # pfs = [[m, calc_beta_dist_model_profit(betas, dist, m, p, s)] for m in models]
 # NA = list()
 # DF = list()
@@ -97,7 +97,7 @@
 # fig.show()
 
 import itertools
-from demand_generator import get_demand
+from demand_generator import gen_data
 import pandas as pd
 import numpy as np
 from matplotlib import pyplot as plt
@@ -126,7 +126,7 @@ models  = ['normal_ass', 'dist_free', 'interval_div']
 ############
 
 demand_type = 'norm'
-dist = get_demand(demand_type, mu, sd, n)
-#dist = get_demand('mm', mu, sd, n, mu1=300, sd1=300 / 4, w1=.4)
-# dist = get_demand('leather', 7920, 8405, 1)
+dist = gen_data(demand_type, mu, sd, n)
+#dist = gen_data('mm', mu, sd, n, mu1=300, sd1=300 / 4, w1=.4)
+# dist = gen_data('leather', 7920, 8405, 1)
 pfs = [[m, calc_beta_dist_model_profit(betas, dist, m, p, s)] for m in models]

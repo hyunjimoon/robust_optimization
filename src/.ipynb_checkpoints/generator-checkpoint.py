@@ -5,7 +5,7 @@ from matplotlib import pyplot as plt
 # 모든 분포는 동일한 1) mean (가능하다면 variance), 2) sample 수를 가진다.
 np.random.seed(1)
 
-def get_demand(dist, mu, sd, n, **kwargs):
+def gen_data(dist, mu, sd, n, **kwargs):
     dist_df = pd.DataFrame()
     if dist == 't':
         dist_df['t'] = t_dist(mu, sd, n)
