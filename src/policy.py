@@ -6,8 +6,9 @@ import matplotlib.pyplot as plt
 import logging
 from sklearn.mixture import GaussianMixture, BayesianGaussianMixture
 from sklearn import mixture
-from loss import loss_opt_NV
-#1. Noncontextual policies
+from loss import lopt_NV
+import cmdstanpy
+#1. Policies without predictors
 #d: demand; special case of random object (outcome) y
 def interval_div_q(d, p, c, s):
     def E_cost_I(q, se_I, p, c, s): #sampe probability per interval
@@ -45,7 +46,6 @@ def normal_ass_q(d, p, c, s):
 
     return np.mean(d) + np.std(d) * norm.ppf(ratio)
 
-
 def quantile_q(d, p, c, s):
     underage_cost = p - c
     overage_cost = c - s
@@ -57,7 +57,6 @@ def quantile_q(d, p, c, s):
     res = mod.fit(q=ratio)
     return res.params['Intercept']
 
-
 def dist_free_q(d, p, c, s):
     Mean = np.mean(d)
     sigma = np.std(d)
@@ -65,117 +64,107 @@ def dist_free_q(d, p, c, s):
     dd = 1 - s / c
     return Mean + (sigma / 2) * (np.sqrt(m / dd) - np.sqrt(dd / m))
 
-## 2. Contextual policies
-def opt_pred_lin_w1(y, X, P_theta):
+## 2. Policies with given predictors (supervised)
+# plug-in opt.solver
+def argmin_lopt_gen(P_ybarx, theta, x):
+    '''
+    Compute optimal solution for each theta and X assuming $Y|X \sim P_{\theta}$
+    Parameters:
+        function P_ybarx: simulator function given X and theta, outputs y
+        array theta: model parameter of size [p, 1]
+        array x: predictor data of size [1, p] 
+        function lopt: loss function, given w(x), y, X, outputs loss
+    Returns:
+        array w: optimal solution for each x of size [n,1]
+    '''
+    y_sim = P_ybarX(theta, x)
+    profit, cost = 5, 1 #todo **kwargs.args()
+    data = {'y': y_sim, 'n': n, 'profit': profit, 'cost': cost} 
+    sm = cmdstanpy.CmdStanModel(stan_file="/content/drive/MyDrive/Colab Notebooks/robust_optimization/src/stan/optW_lopt_NV.stan") 
+    # /content/drive/MyDrive/Colab Notebooks/robust_optimization/src/
+    what = sm.optimize(data).stan_variable('w')
+    return what
+
+# approach 1
+def argmin_lopt_bar_argmin_lpred(MClass, y, X, alg_type = "sample"):
     '''
     Compute approach1 optimal solution; separate predict optimize
     Parameters:
-        np.array y: outcome data of dimension [n, 1]
-        np.array X: predictor data of dimension [n, p] 
-        function or chr P_theta: P_theta = `normal_dist(theta * X, 1)` or `lin` 
+         char MClass: model class type specificed with `P_ybarx`
+            "lin": y_true = theta' * X
+            "quad": y_true = theta' * X^2
+          np.array y: outcome data of size [n, 1]
+          np.array X: predictor data of size [n, p] 
+          chr alg_type: Solver algorithm
     Returns:
-        np.array theta: optimal parameter of dimension [p, 1]
+        np.array what: predict then optimize optimal solution of size [n,1]
     '''
-  # [1] run argmin_l_pred given distribution d acc. to x
-  # [1] run argmin_C_opt given theta1 once
-  thetahat = argmin_l_pred(y, X,)
-  return argmin_l_opt(thetahat, y, X)
+    thetahat1 = argmin_lpred(MClass, y, X, alg_type = alg_type)
+    what = np.repeat(np.nan, len(X))
+    for i in range(len(X)):
+        what[i] = argmin_lopt_gen(P_ybarx, thetahat1, X[i])
+    return what
 
-def argmin_l_pred(y, X): #can get `l_pred` function
+# approach 2
+def argmin_lopt_emp(P_ybarx, y, X):
+    '''
+    Compute approach2 optimal solution; empirical objective minimization
+    Parameters:
+        function P_ybarx: simulator function given X and theta, outputs y
+        array y: outcome data of size [n, 1]
+        array X: predictor data of size [n, p] 
+    Returns:
+        array w: optimal solution for each x of size [n,1]
+    '''
+    what = np.repeat(np.nan, len(X))
+    theta1 = np.arange(1, 3, 0.5)
+    theta2 = np.arange(1, 3, 0.5)
+    theta1, theta2 = np.meshgrid(theta1, theta2)
+    profit, cost = 5, 1
+    M = 0
+    thetahat2
+    for theta in zip(theta1.ravel(), theta2.ravel()):
+      for x in X:
+        what = argmin_lopt_gen(P_ybarx, theta, x)
+        loss += lopt_NV(what, y, profit, cost)
+      if loss < M:
+        thetahat2 = theta
+    what = np.repeat(np.nan, len(X))
+    for i in range(len(X)):
+        what[i] = argmin_lopt_gen(P_ybarx, thetahat2, X[i])
+    return what
+
+def argmin_lpred(MClass, y, X, alg_type = "sample"):
     '''
     Solve parameter that best predicts y given X assuming $y\sim N(X * theta, 1)$
-
     Parameters:
-        np.array y: outcome data of dimension [n, 1]
-        np.array X: predictor data of dimension [n, p] 
+        char MClass: model class type specificed with `P_ybarx` which is user-defined 
+             input for `argmin_lopt_gen`, `argmin_lopt_emp` 
+             SHOULD comply with "P_ybarx_f{MClass}.stan"
+             "lin": y_true = theta' * X
+             "quad": y_true = theta' * X^2
+        np.array y: outcome data of size [n, 1]
+        np.array X: predictor data of size [n, p] 
+        chr alg_type: Solver algorithm
+             "sample": MAP with improper uniform priors (undeclared) in stan file with HMC
+             "optimize": Maximum likelihood estimate () with "lbfgs", "bfgs", "newton"  
+             "varaiational": variational inference with ADVI, RVI
+             https://mc-stan.org/cmdstanpy/examples/Maximum%20Likelihood%20Estimation.html
+             https://mc-stan.org/cmdstanpy/examples/Variational%20Inference.html
     Returns:
-        np.array theta: optimal parameter of dimension [p, 1]
+        np.array thetahat: optimal parameter value of size [p, 1]
     '''
-    data = {'X':X.tolist(), 'y':y, 'n': n, 'p': p} 
-    sm = cmdstanpy.CmdStanModel(stan_file="stan/LinReg.stan")
-    return np.mean(sm.sample(data).stan_variable('beta'), axis =0)
+    data = {'X':X.tolist(), 'y':y, 'n': len(X), 'p': len(X[1])} 
+    sm = cmdstanpy.CmdStanModel(stan_file="/content/drive/MyDrive/Colab Notebooks/robust_optimization/src/stan/optTheta_lpred.stan") # true theta: 2, 2
+    if alg_type == "sample":
+      thetahat = np.mean(sm.sample(data).stan_variable('beta'), axis =0) # 2.00, 1.98
+    if alg_type == "optimize":
+      thetahat = sm.optimize(data).stan_variable('beta') # 2.00 , 1.98
+    if alg_type == "variational": 
+      thetahat = np.mean(sm.sample(data).stan_variable('beta'), axis =0) # 1.99, 1.99
+    return thetahat
 
-def opt_pred_lin_w2(y, X, l_opt, P_theta, **kwargs):
-    '''
-    Compute approach2 optimal solution; empirical objectvie min.
-    Parameters:
-        np.array y: outcome data of dimension [n, 1]
-        np.array X: predictor data of dimension [n, p] 
-        function or chr P_theta: P_theta = `normal_dist(theta * X, 1)` or `lin` 
-    Returns:
-        np.array theta: optimal parameter of dimension [p, 1]
-    '''
-  theta = argmin_l_pred(y, x)
-  loss_opt(kwargs.values()) #p, c, s = kwargs.values() 
-  thetahat = 
-  return argmin_l_opt(thetahat, y)
-
-def w_thetahat(x, thetahat, y):
-    '''
-    Compute optimal solution vector for each x, 
-    as a representation of function of x, given theta0 and dataset (x,y)
-    Parameters:
-        array x: predictor array of dimension [n,1]
-        array theta0: estimated parameter value
-        array y: outcome array of dimension [n, 1]
-    Returns:
-        array w: optimal solution for each x dimension [n,1]
-    '''
-  return W_solver(theta, y, x theta_cand) 
-def W_solver(theta, y, X):
-    '''
-    Compute optimal solution vector for each theta and x
-    as a representation of function of x, given theta0 and dataset (x,y)
-    Parameters:
-        array x: predictor array of dimension [n,1]
-        array thetahat: estimated parameter value
-        array y: outcome array of dimension [n, 1]
-    Returns:
-        array w: optimal solution for each x dimension [n,1]
-    '''
-    data = {'X': X, 'y':y, 'n': n, 'p': p}
-    sm = CmdStanModel(stan_file="stan/LinReg.stan")
-
-    theta1 = fit$optimize()['theta']
-    theta_cand[np.argmax([loss_opt(w, y, x, theta, **kwargs) for  in theta_cand])]
-    call stan one time for W_solver1
-    dgp with theta, fitted with thetahat given y, X
-  return W_solver(theta0, y, X) 
-  
-def argmin_l_opt(loss_opt, y, X, theta_cand, **kwargs):
-  return theta_cand[np.argmax([loss_opt(w, y, X, theta, **kwargs) for  in theta_cand])]
-
-w = argmin_l_opt(loss_opt_NV, y, X, theat_cand, {p: 10, c : 5, s : 1})
-
-def w_optmizer(theta, xx, x, y):
-    '''
-    Solve optimization (what is its loss?) problem given theta, predictor, (outcome, predictor) data 
-    Iterate over w gives optimal solution
-    Parameters:
-        real w: decision value
-        array y: outcome array of dimension [n, 1]
-        array x: predictor array of size [n, 1]
-        array theta: assumed model parameter to solve `argmin_l_opt`
-        **kwargs: lost function coefficients
-    Returns:
-        real: objective value of C(w(theta, x), y)
-    '''
-
-
-
-
-
-def predictor_lin_w2_q(d, p, c, s, x):
-  # run optimizer d times 
-  thetahat = argmin(obj)
-  plug in thetahat to what which given thetahat, y return q 
-  return q_theta_y(thetahat, d)
-# plug-in optimizer
-# given model parameter `theta`, random object `y`
-def q_theta_y(theta, y):
-  q_cand[np.argmax([profit(q, y_w, p, c, s) for q in q_cand])]
-  # run argmin_C_opt(w, y)
-  return q
+## 3. Policies with generated predictors (unsupervised)
 def fit_gmm_normalize_return_comp(df):
     dfy = df.y.copy()
     y = dfy #scaling todo (dfy - np.mean(dfy))/np.std(dfy) https://stackoverflow.com/questions/13161923/python-sklearn-mixture-gmm-not-robust-to-scale

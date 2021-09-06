@@ -2,9 +2,7 @@ import numpy as np
 import cmdstanpy # cmdstanpy.install_cmdstan()
 import json
 # performance measure
-from policy import dist_free_q, normal_ass_q, interval_div_q, quantile_q
-
-
+#from policy import dist_free_q, normal_ass_q, interval_div_q, quantile_q
 
 def calc_beta_dist_model_loss(betas, dist, model, p, s):
     pf = []
@@ -36,46 +34,22 @@ def calc_beta_dist_model_loss(betas, dist, model, p, s):
             print('quantile_q', q)
     return pf
 
-def argmin_l_pred_NV(y, X):
-  data = {'X': X, 'y':y, 'n': n, 'p': p}
-  sm = cmdstanpy.CmdStanModel(stan_file="stan/LinReg.stan")
-  fit = sm.sample(data)
-  theta1 = fit.stan_variable(name='theta')
-  return theta1
-
-def loss_opt_NV(w_thetahat, y, X, thetahat, **kwargs):
+# used in `argmin_lopt_emp` for pointwise loss
+# lopt_[] should comply with `optTheta_[], optW_[]`.stan
+def lopt_NV(w, y, profit, cost):
     '''
-    Compute loss of optimization (a.k.a cost function, objective value)
-    Iterate over w gives optimal solution
+    Compute optimization loss (a.k.a cost function)
     Parameters:
-        function W_solver: decision function: (Theta, X) -> R, $\hat{W}(thetahat, x)$ 
-        function w_thetahat: decision function: X -> R, $\hat{W}(thetahat, x)$ 
-        array y: outcome array of dimension [n, 1]
-        array X: predictor array of size [n, p]
-        array thetahat: assumed model parameter to solve `argmin_l_opt`
-        **kwargs: lost function coefficients
+        real w: decision e.g. inventory amount
+        real y: outcome e.g. demand
+        real profit
+        real cost
     Returns:
         real: objective value, $l_opt(W(thetahat, X), y)$
     '''
-    p, c, s = kwargs.values()
-    underage_cost = np.maximum(p - c, 0.)
-    overage_cost = np.maximum(c - s, 0.)
-    for xx, yy in zip(x, y):
-        w = w_thetahat(xx)
-        W_optmizer(theta, xx, x, y)
-        loss += p * np.min(w, yy) - c * w
+    return profit * np.min(w, yy) - cost * w
+    profit, cost = kwargs.values()
+    for yy, XX in zip(y, X):
+        w = w_theta(P_ybarx, theta, y, XX) # w_theta(y, XX)
+        loss += profit * np.min(w, yy) - cost * w
     return loss / len(y)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
