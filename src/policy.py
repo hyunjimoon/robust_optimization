@@ -116,16 +116,20 @@ def argmin_lopt_emp(P_ybarx, y, X):
     Returns:
         array w: optimal solution for each x of size [n,1]
     '''
-    what = np.repeat(np.nan, len(X))
+    # DO NOT CONFUSE THE TWO
+    # what_x (\hat{w}(\theta, x_i))
+    # what (\hat{w}(\hat{\theta_2}, x))
     theta1 = np.arange(1, 3, 0.5)
     theta2 = np.arange(1, 3, 0.5)
     theta1, theta2 = np.meshgrid(theta1, theta2)
     profit, cost = 5, 1
-    M = 0
+    M = 1000000
     for theta in zip(theta1.ravel(), theta2.ravel()):
-      for x in X:
-        what = argmin_lopt_gen(P_ybarx, theta, x)
-        loss += lopt_NV(what, y, profit, cost)
+      loss = 0
+      for i in range(len(X)):
+        what_x = argmin_lopt_gen(P_ybarx, theta, X[i])
+        loss -= (profit * min(what_x, y[i]) - cost * what_x)
+        #lopt_NV(what, y[i], profit, cost) 'numpy.float64' object cannot be interpreted as an integer
       if loss < M:
         thetahat2 = theta
     what = np.repeat(np.nan, len(X))
