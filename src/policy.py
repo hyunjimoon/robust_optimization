@@ -122,7 +122,6 @@ def argmin_lopt_emp(P_ybarx, y, X):
     theta1, theta2 = np.meshgrid(theta1, theta2)
     profit, cost = 5, 1
     M = 0
-    thetahat2
     for theta in zip(theta1.ravel(), theta2.ravel()):
       for x in X:
         what = argmin_lopt_gen(P_ybarx, theta, x)
