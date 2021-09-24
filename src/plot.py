@@ -1,29 +1,32 @@
+import pandas as pd
 import numpy as np
-from matplotlib import pyplot as plt
+#from contextPolicy import argmin_lopt_genargmin_lopt_emp, argmin_lpred, argmin_lopt_bar_argmin_lpred
+def train_test_err(X, X_new, y_w, y_w_new, y_m, y_m_new, Thetastar):
+  '''
+  Receive feature and outcome for train and testset with ground_truth
+  Parameters:
+      char specification type: 
+            "well": generated with y_true = Theta' * X
+            "miss": generated with exp(theta*x)
+      real sigma_y: noise scale
+  Returns:
+      train, test error
+  '''
+  test_size = 100000
+  what1, Thetahat1 = argmin_lopt_bar_argmin_lpred("lin", "Norm", X, Theta = None, y = y_w)
+  train_df['err_w1'] = lopt_NV(what1, y_w) 
+  what2, Thetahat2 = argmin_lopt_emp("lin", "Norm", X, Theta = None, y = y_w)
+  train_df['err_w2'] = lopt_NV(what2, y_w) 
 
-from policy import dist_free_q, normal_ass_q, interval_div_q
-from profit import profit
 
-#
-# def plot_beta_profit(betas, dist, model, p, s, **kwargs):
-#     pf = []
-#     for beta in betas:
-#         c = (p - s) * beta + s
-#         BoundaryIndex = int(len(dist) * 0.8)
-#         underage_cost = p - c
-#         overage_cost = c - s
-#         ratio = underage_cost / (underage_cost + overage_cost)
-#
-#         train = dist[:BoundaryIndex]
-#         test = dist[BoundaryIndex:]
-#
-#         if model == "normal_ass":
-#             q = dist_free_q(train, ratio)
-#             pf.append(profit(q, test, p, c, s))
-#         elif model == "dist_free":
-#             q = normal_ass_q(train, p, c, s)
-#             pf.append(profit(q, test, p, c, s))
-#         elif model == "interval_div":
-#             q = interval_div_q(train, p, c, s)
-#             pf.append(profit(q, test, p, c, s))
-#     return pf
+  test_df['err_new_w1'] = lopt_NV(argmin_lopt_bar_argmin_lpred("lin", "Norm", X, Theta = Thetahat1, y = None), y_w_new) 
+  test_df['err_new_w2'] = lopt_NV(argmin_lopt_emp("lin", "Norm", X, Theta = Thetahat2, y = None), y_w_new) 
+
+  what1, Thetahat1 = argmin_lopt_bar_argmin_lpred("lin", "Norm", X, Theta = None, y = y_m)
+  train_df['err_m1'] = lopt_NV(what1, y_w) 
+  what2, Thetahat2 = argmin_lopt_emp("lin", "Norm", X,  Theta = None, y = y_m)
+  train_df['err_m2'] = lopt_NV(what2, y_w) 
+
+  test_df['err_new_m1'] = lopt_NV(argmin_lopt_bar_argmin_lpred("lin", "Norm", X, Theta = Thetahat1, y = None), y_m_new) 
+  test_df['err_new_m2'] = lopt_NV(argmin_lopt_emp("lin", "Norm", X, Theta = Thetahat2, y = None), y_m_new) 
+  return train_df, test_df

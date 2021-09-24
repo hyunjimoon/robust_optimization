@@ -36,20 +36,15 @@ def calc_beta_dist_model_loss(betas, dist, model, p, s):
 
 # used in `argmin_lopt_emp` for pointwise loss
 # lopt_[] should comply with `optTheta_[], optW_[]`.stan
-def lopt_NV(w, y, profit, cost):
+def lopt_NV(W, Y, profit = 5, cost = 1):
     '''
     Compute optimization loss (a.k.a cost function)
     Parameters:
-        real w: decision e.g. inventory amount
-        real y: outcome e.g. demand
+        real W: decision e.g. inventory amount
+        real Y: outcome e.g. demand
         real profit
         real cost
     Returns:
         real: objective value, $l_opt(W(thetahat, X), y)$
     '''
-    return profit * np.min(w, yy) - cost * w
-    profit, cost = kwargs.values()
-    for yy, XX in zip(y, X):
-        w = w_theta(P_ybarx, theta, y, XX) # w_theta(y, XX)
-        loss += profit * np.min(w, yy) - cost * w
-    return loss / len(y)
+    return np.mean([(profit * min(w, y) - cost * w) for w, y in zip(W, Y)])
