@@ -1,14 +1,58 @@
+import os
 import pandas as pd
 import numpy as np
 from scipy.stats import norm
-import logging
-import cmdstanpy
+from cmdstanpy import cmdstan_path, CmdStanModel
 import jax
 from jax.experimental import optimizers
 import jax.scipy as jsc
 import jax.numpy as jnp
 from loss import lopt_NV
 from generator import sim_y_barThetax, sim_ThetaXy, P_ybarx, check_random_state, make_low_rank_matrix
+
+def train_test_w(X_train, X_test, y_train, y_test, Thetastar):
+    '''
+    Receive feature and outcome for train and testset with ground_truth
+    Parameters:
+      char specification type: 
+            "well": generated with y_true = Theta' * X
+            "miss": generated with exp(theta*x)
+      real sigma_y: noise scale
+    Returns:
+      train, test error
+    '''
+    train_df = pd.DataFrame()
+    test_df = pd.DataFrame()   
+    train_df['meantrue'] = np.dot(X_train, Thetastar)
+    test_df['meantrue'] = np.dot(X_test, Thetastar)
+    train_df['X0'] = X_train[:,0]
+    train_df['X1'] = X_train[:,1]
+    test_df['X0'] = X_test[:,0]
+    test_df['X1'] = X_test[:,1]
+    
+    # Well-specified train
+    what1_train, Thetahat1 = argmin_lopt_bar_argmin_lpred("lin", "Norm", X_train, Theta = None, y = y_train, input_type = "y", alg_type = "optimize")
+    what2_train, Thetahat2 = argmin_lopt_emp("lin", "Norm", X_train, Theta = None, y = y_train, input_type = "y", Thetastar = Thetastar)
+    #search_type = search_type? TypeError: cannot unpack non-iterable NoneType object
+
+    # Well-specified test
+    what1_test = argmin_lopt_bar_argmin_lpred("lin", "Norm", X_test, Theta = Thetahat1, y = None, input_type = "Theta")
+    what2_test = argmin_lopt_emp("lin", "Norm", X_test, Theta = Thetahat2, y = None, input_type = "Theta", Thetastar = Thetastar)
+    
+    # save
+    train_df['w1'] = what1_train
+    train_df['w2'] = what2_train
+    test_df['w1'] = what1_test
+    test_df['w2'] = what2_test
+    
+    # todo pickle, hash
+    # train_df.to_pickle(f"train_{len(train_df)}.csv")
+    # test_df.to_pickle(f"train_{len(test_df)}.csv")
+    # pd.read_pickle(f"train_{len(train_df)}.csv")
+    # pd.read_pickle(f"test_{len(test_df)}.csv")
+
+    return train_df, test_df
+
 # approach 1 if y = None: W(Theta, X) else Thetahat, W(Thetahat, x)
 def argmin_lopt_bar_argmin_lpred(link, family, X, Theta, y, input_type, alg_type = "sample"):
     '''
@@ -30,16 +74,16 @@ def argmin_lopt_bar_argmin_lpred(link, family, X, Theta, y, input_type, alg_type
     what = np.repeat(np.nan, len(X))
     if input_type == "Theta":
         for i in range(len(X)):
-          what[i] = argmin_lopt_gen(link, family, X[i], Theta)
+            what[i] = argmin_lopt_gen(link, family, X[i], Theta)
         return what
     else:
         Thetahat1 = argmin_lpred(link, family, X, y, alg_type = alg_type)
         for i in range(len(X)):
-          what[i] = argmin_lopt_gen(link, family, X[i], Thetahat1)
+            what[i] = argmin_lopt_gen(link, family, X[i], Thetahat1)
         return what, Thetahat1
 
 # approach 2
-def argmin_lopt_emp(link, family, X, Theta, y, input_type, Thetastar = None, search_type = "autodiff"):
+def argmin_lopt_emp(link, family, X, Theta, y, input_type, Thetastar = None, search_type = "grid"):
     '''
     Compute approach2 optimal solution; empirical objective minimization
     Parameters:
@@ -58,7 +102,7 @@ def argmin_lopt_emp(link, family, X, Theta, y, input_type, Thetastar = None, sea
     what = np.repeat(np.nan, len(X))
     if input_type == "Theta":
         for i in range(len(X)):
-          what[i] = argmin_lopt_gen(link, family, X[i], Theta)
+            what[i] = argmin_lopt_gen(link, family, X[i], Theta)
         return what
     else:
         if search_type == "grid":
@@ -68,17 +112,19 @@ def argmin_lopt_emp(link, family, X, Theta, y, input_type, Thetastar = None, sea
                 '''
                 lopt = 0
                 for i in range(len(X)):
-                  what_x = argmin_lopt_gen(link, family, X[i], Theta)
-                  lopt -= (5 * min(what_x, y[i]) - 1 * what_x)
+                    what_x = argmin_lopt_gen(link, family, X[i], Theta)
+                    lopt -= (5 * min(what_x, y[i]) - 1 * what_x)
                 return lopt
-            theta1 = np.linspace(Thetastar[0]*.8, Thetastar[0]*1.2, num = 10)
-            theta2 = np.linspace(Thetastar[1]*.8, Thetastar[1]*1.2, num = 10)
+            theta1 = np.linspace(Thetastar[0]*.8, Thetastar[0]*1.2, num = 50)
+            theta2 = np.linspace(Thetastar[1]*.8, Thetastar[1]*1.2, num = 50)
             theta1, theta2 = np.meshgrid(theta1, theta2)
             M = 1000000
             for Theta in zip(theta1.ravel(), theta2.ravel()):
                 #lopt_NV(what, y[i], profit, cost) 'numpy.float64' object cannot be interpreted as an integer
-              if lopt_sim(link, family, X, Theta) < M:
-                Thetahat2 = Theta
+                if lopt_sim(link, family, X, Theta) < M:
+                    Thetahat2 = Theta
+                    M = lopt_sim(link, family, X, Theta)
+                    print("loss", lopt_sim(link, family, X, Theta),  "Thetastar", Thetastar, "theta", Thetahat2)
         elif search_type == "autodiff":
             def lopt_fn(param, X, y): #param = p*1, X:n*p, x= 1*p
                 '''
@@ -86,21 +132,21 @@ def argmin_lopt_emp(link, family, X, Theta, y, input_type, Thetastar = None, sea
                 '''
                 lopt = 0
                 for i in range(len(X)):
-                  what_x = jsc.stats.norm.ppf(loc = param @ X[i], q =0.8) #TODO
-                  lopt -= 5 * min(what_x, y[i]) - 1 * what_x
+                    what_x = jsc.stats.norm.ppf(loc = param @ X[i], q =0.8) #TODO
+                    lopt += - (5 * min(what_x, y[i]) - 1 * what_x)
                 return lopt
-            Theta = Thetastar * 1.1 # np.random.normal(1) # init
-            lr = 1
-            opt_init, opt_update, get_params = optimizers.adagrad(lr)
+            Theta = Thetastar
+            lr = 10
+            opt_init, opt_update, get_params = optimizers.rmsprop(lr)
             opt_state = opt_init(Theta)
-            for i in range(50): # TODO cvg diag.
+            for i in range(30): # TODO cvg diag.
                 loss, grads = jax.value_and_grad(lopt_fn)(get_params(opt_state), X, y)
                 opt_state = opt_update(i, grads, opt_state)
-                print("loss", loss, "Thetastar", Thetastar, "Thetahat", get_params(opt_state))
+                print("loss", loss, "Thetastar", Thetastar, "Thetahat", get_params(opt_state), "grads", grads)
             Thetahat2 = get_params(opt_state)
-            for i in range(len(X)):
-                what[i] = argmin_lopt_gen(link, family, X[i], Thetahat2)
-            return what, Thetahat2
+        for i in range(len(X)):
+            what[i] = argmin_lopt_gen(link, family, X[i], Thetahat2)
+        return what, Thetahat2
 
 # plug-in opt.solver
 def argmin_lopt_gen(link, family, x, Theta, closed_type = "W_Theta", **kwargs):
@@ -115,16 +161,15 @@ def argmin_lopt_gen(link, family, x, Theta, closed_type = "W_Theta", **kwargs):
     Returns:
         array w: optimal solution for each x of size [n,1]
     '''
+    sigma_y = 1
     if closed_type == "P_ybarx":      
-      y_sim = P_ybarx(link, family, x, Theta, sigma_y)
-      data = {'y': list(y_sim), 'n': len(y_sim)}
-      data = {**data, **kwargs}
-      sm = cmdstanpy.CmdStanModel(stan_file="/content/drive/MyDrive/Colab Notebooks/robust_optimization/src/stan/optW_lopt_NV.stan")
-      W_Thetax = sm.optimize(data).stan_variable('w')
-    elif closed_type == "W_Theta":
-      print(Theta)
-      print(x.shape)
-      W_Thetax = np.dot(x, Theta) + norm.ppf(.8) * sigma_y
+        y_sim = P_ybarx(link, family, x, Theta, sigma_y)
+        data = {'y': list(y_sim), 'n': len(y_sim)}
+        data = {**data, **kwargs}
+        sm = cmdstanpy.CmdStanModel(stan_file="/content/drive/MyDrive/Colab Notebooks/robust_optimization/src/stan/optW_lopt_NV.stan")
+        W_Thetax = sm.optimize(data).stan_variable('w')
+    elif closed_type == "W_Theta":      
+        W_Thetax = np.dot(x, Theta) + norm.ppf(.8) * sigma_y
     return W_Thetax
 def argmin_lpred(link, family, X, y, alg_type = "sample"):
     '''
@@ -147,12 +192,14 @@ def argmin_lpred(link, family, X, y, alg_type = "sample"):
     Returns:
         np.array Thetahat: optimal parameter value of size [p, 1]
     '''
+    lpred_stan = os.path.join('stan', 'optTheta_lpred.stan')
+
     data = {'X':X.tolist(), 'y':y, 'n': len(X), 'p': len(X[1]), 'sigma_y': 1}
-    sm = cmdstanpy.CmdStanModel(stan_file="/content/drive/MyDrive/Colab Notebooks/robust_optimization/src/stan/optTheta_lpred.stan") # true Theta: 2, 2
+    sm = CmdStanModel(stan_file=lpred_stan) # true Theta: 2, 2
     if alg_type == "sample":
-      Thetahat = np.mean(sm.sample(data).stan_variable('beta'), axis =0) # 2.00, 1.98
+        Thetahat = np.mean(sm.sample(data).stan_variable('beta'), axis =0) # 2.00, 1.98
     if alg_type == "optimize":
-      Thetahat = sm.optimize(data).stan_variable('beta') # 2.00 , 1.98
+        Thetahat = sm.optimize(data).stan_variable('beta') # 2.00 , 1.98
     if alg_type == "variational":
-      Thetahat = np.mean(sm.sample(data).stan_variable('beta'), axis =0) # 1.99, 1.99
+        Thetahat = np.mean(sm.sample(data).stan_variable('beta'), axis =0) # 1.99, 1.99
     return Thetahat

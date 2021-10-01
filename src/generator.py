@@ -117,10 +117,10 @@ def sim_ThetaXy(mu2eta = "lin", family = "Normal", n_gen=100, n_features=2, n_in
     generator = check_random_state(random_state)
     #Theta
     Theta = np.zeros((n_features, n_targets))
-    Theta[:n_informative, :] = 100 * generator.rand(n_informative, n_targets)
+    Theta[:n_informative, :] =  abs(generator.rand(n_informative, n_targets))#100 *
     if effective_rank is None:
         # Randomly generate a well conditioned input set
-        X = generator.randn(n_gen, n_features)
+        X = abs(5 * generator.randn(n_gen, n_features))
     else:
         # Randomly generate a low rank, fat tail input set
         X = make_low_rank_matrix(n_gen=n_gen,
@@ -158,12 +158,11 @@ def P_ybarx(mu2eta, family, Theta, X, sigma_y):
         eta =  np.dot(np.power(X, 2), Theta) 
         #= X.transpose() * diag(Theta) how to produce Theta2, Theta1 separately and fit
     if family == "Normal":
-      print(eta)
-      return np.random.normal(eta, scale = sigma_y, size = len(X))
+        return np.random.normal(eta, scale = sigma_y, size = len(X))
     elif family == "Exp":
-      return np.random.exp(loc = eta, scale = sigma_y, size = len(X))
+        return np.random.exp(loc = eta, scale = sigma_y, size = len(X))
     elif family == "Cauchy":
-      return np.random.Cauchy(loc = eta, scale = sigma_y, size = len(X))
+        return np.random.Cauchy(loc = eta, scale = sigma_y, size = len(X))
 
 def check_random_state(seed):
     """Turn seed into a np.random.RandomState instance
