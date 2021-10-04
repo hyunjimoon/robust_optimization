@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 from scipy.stats import norm
 from cmdstanpy import cmdstan_path, CmdStanModel
+from sklearn.linear_model import LinearRegression
 import jax
 from jax.experimental import optimizers
 import jax.scipy as jsc
@@ -31,7 +32,7 @@ def train_test_w(X_train, X_test, y_train, y_test, Thetastar):
     test_df['X1'] = X_test[:,1]
     
     # Well-specified train
-    what1_train, Thetahat1 = argmin_lopt_bar_argmin_lpred("lin", "Norm", X_train, Theta = None, y = y_train, input_type = "y", alg_type = "optimize")
+    what1_train, Thetahat1 = argmin_lopt_bar_argmin_lpred("lin", "Norm", X_train, Theta = None, y = y_train, input_type = "y")
     what2_train, Thetahat2 = argmin_lopt_emp("lin", "Norm", X_train, Theta = None, y = y_train, input_type = "y", Thetastar = Thetastar)
     #search_type = search_type? TypeError: cannot unpack non-iterable NoneType object
 
@@ -54,7 +55,7 @@ def train_test_w(X_train, X_test, y_train, y_test, Thetastar):
     return train_df, test_df
 
 # approach 1 if y = None: W(Theta, X) else Thetahat, W(Thetahat, x)
-def argmin_lopt_bar_argmin_lpred(link, family, X, Theta, y, input_type, alg_type = "sample"):
+def argmin_lopt_bar_argmin_lpred(link, family, X, Theta, y, input_type, alg_type = "OLS"):
     '''
     Compute approach1 optimal solution; separate predict optimize
     Parameters:
@@ -115,8 +116,8 @@ def argmin_lopt_emp(link, family, X, Theta, y, input_type, Thetastar = None, sea
                     what_x = argmin_lopt_gen(link, family, X[i], Theta)
                     lopt -= (5 * min(what_x, y[i]) - 1 * what_x)
                 return lopt
-            theta1 = np.linspace(Thetastar[0]*.8, Thetastar[0]*1.2, num = 50)
-            theta2 = np.linspace(Thetastar[1]*.8, Thetastar[1]*1.2, num = 50)
+            theta1 = np.linspace(Thetastar[0]*.85, Thetastar[0]*1.15, num = 50)
+            theta2 = np.linspace(Thetastar[1]*.85, Thetastar[1]*1.15, num = 50)
             theta1, theta2 = np.meshgrid(theta1, theta2)
             M = 1000000
             for Theta in zip(theta1.ravel(), theta2.ravel()):
@@ -171,7 +172,7 @@ def argmin_lopt_gen(link, family, x, Theta, closed_type = "W_Theta", **kwargs):
     elif closed_type == "W_Theta":      
         W_Thetax = np.dot(x, Theta) + norm.ppf(.8) * sigma_y
     return W_Thetax
-def argmin_lpred(link, family, X, y, alg_type = "sample"):
+def argmin_lpred(link, family, X, y, alg_type = "OLS"):
     '''
     Solve parameter that best predicts y given X assuming $y\sim N(X * Theta, 1)$
     Parameters:
@@ -184,6 +185,7 @@ def argmin_lpred(link, family, X, y, alg_type = "sample"):
         np.array X: predictor data of size [n, p]
         np.array y: outcome data of size [n, 1]
         chr alg_type: Solver algorithm
+             "OLS": (xx')^x'beta                                                                                                                                                                     
              "sample": MAP with improper uniform priors (undeclared) in stan file with HMC
              "optimize": Maximum likelihood estimate () with "lbfgs", "bfgs", "newton"
              "varaiational": variational inference with ADVI, RVI
@@ -192,14 +194,18 @@ def argmin_lpred(link, family, X, y, alg_type = "sample"):
     Returns:
         np.array Thetahat: optimal parameter value of size [p, 1]
     '''
-    lpred_stan = os.path.join('stan', 'optTheta_lpred.stan')
 
-    data = {'X':X.tolist(), 'y':y, 'n': len(X), 'p': len(X[1]), 'sigma_y': 1}
-    sm = CmdStanModel(stan_file=lpred_stan) # true Theta: 2, 2
-    if alg_type == "sample":
-        Thetahat = np.mean(sm.sample(data).stan_variable('beta'), axis =0) # 2.00, 1.98
-    if alg_type == "optimize":
-        Thetahat = sm.optimize(data).stan_variable('beta') # 2.00 , 1.98
-    if alg_type == "variational":
-        Thetahat = np.mean(sm.sample(data).stan_variable('beta'), axis =0) # 1.99, 1.99
+    if alg_type == "OLS":
+        reg = LinearRegression(fit_intercept = False).fit(X, y)
+        Thetahat = reg.coef_
+    else:
+        lpred_stan = os.path.join('stan', 'optTheta_lpred.stan')
+        data = {'X':X.tolist(), 'y':y, 'n': len(X), 'p': len(X[1]), 'sigma_y': 1}
+        sm = CmdStanModel(stan_file=lpred_stan) # true Theta: 2, 2
+        if alg_type == "sample":
+            Thetahat = np.mean(sm.sample(data).stan_variable('beta'), axis =0) # 2.00, 1.98
+        elif alg_type == "optimize":
+            Thetahat = sm.optimize(data).stan_variable('beta') # 2.00 , 1.98
+        elif alg_type == "variational":
+            Thetahat = np.mean(sm.sample(data).stan_variable('beta'), axis =0) # 1.99, 1.99
     return Thetahat

@@ -117,10 +117,12 @@ def sim_ThetaXy(mu2eta = "lin", family = "Normal", n_gen=100, n_features=2, n_in
     generator = check_random_state(random_state)
     #Theta
     Theta = np.zeros((n_features, n_targets))
-    Theta[:n_informative, :] =  abs(generator.rand(n_informative, n_targets))#100 *
+    Theta[:n_informative, :] =  np.array([[5  ],
+                                       [6]])
+    #abs(generator.rand(n_informative, n_targets))#100 *
     if effective_rank is None:
         # Randomly generate a well conditioned input set
-        X = abs(5 * generator.randn(n_gen, n_features))
+        X = generator.randn(n_gen, n_features)  + 10
     else:
         # Randomly generate a low rank, fat tail input set
         X = make_low_rank_matrix(n_gen=n_gen,
