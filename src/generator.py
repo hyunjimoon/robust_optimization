@@ -117,12 +117,12 @@ def sim_ThetaXy(mu2eta = "lin", family = "Normal", n_gen=100, n_features=2, n_in
     generator = check_random_state(random_state)
     #Theta
     Theta = np.zeros((n_features, n_targets))
-    Theta[:n_informative, :] =  np.array([[5  ],
-                                       [6]])
+    Theta[:n_informative, :] =  np.array([[1.5  ],
+                                       [2]])
     #abs(generator.rand(n_informative, n_targets))#100 *
     if effective_rank is None:
         # Randomly generate a well conditioned input set
-        X = generator.randn(n_gen, n_features)  + 10
+        X = generator.rand(n_gen, n_features) * 2 + 3
     else:
         # Randomly generate a low rank, fat tail input set
         X = make_low_rank_matrix(n_gen=n_gen,
@@ -248,7 +248,7 @@ def gamma_dist(mu, sd, n):
     return np.random.gamma(a, b, n)
 
 def unif_dist(mu, sd, n):
-   return np.random.uniform(mu - np.sqrt(3)*sd, mu + np.sqrt(3)*sd, n)
+    return np.random.uniform(mu - np.sqrt(3)*sd, mu + np.sqrt(3)*sd, n)
 
 def mixture_dist(mu, sd, mu1, sd1, w1, n):
     mu2 = (mu - w1 * mu1) / (1 - w1)

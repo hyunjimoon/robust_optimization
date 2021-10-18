@@ -37,7 +37,7 @@ def calc_beta_dist_model_loss(betas, dist, model, p, s):
 
 # used in `argmin_lopt_emp` for pointwise loss
 # lopt_[] should comply with `optTheta_[], optW_[]`.stan
-def lopt_NV(W, input_type = "Y", X = None, Thetastar = None, Y = None):
+def lopt_NV(W, input_type = "Y", X = None, Thetahat = None, Y = None):
     '''
     Compute optimization loss (a.k.a cost function)
     Parameters:
@@ -54,10 +54,10 @@ def lopt_NV(W, input_type = "Y", X = None, Thetastar = None, Y = None):
         return - np.mean([(profit * min(w, y) - cost * w) for w, y in zip(W, Y)])
     elif input_type == "Theta":
         sigma_y = 1
-        meanstar = pd.Series(np.dot(X, Thetastar))
-        z = (W -  meanstar) / sigma_y
+        meanhat = pd.Series(np.dot(X, Thetahat))
+        z = (W -  meanhat) / sigma_y
         E_lost_sales = norm.pdf(z) - z * (1 - norm.cdf(z)) # L(z)=ϕ(z)−z(1−Φ(z))
-        E_sales = meanstar - E_lost_sales     
+        E_sales = meanhat - E_lost_sales     
         E_leftover = W - E_sales
         E_profit = (profit - cost) * E_sales - cost * E_leftover
         return - np.mean(E_profit)

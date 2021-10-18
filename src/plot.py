@@ -1,4 +1,4 @@
- import pandas as pd
+import pandas as pd
 import numpy as np
 from contextPolicy import argmin_lopt_bar_argmin_lpred, argmin_lopt_emp
 from loss import lopt_NV
@@ -24,13 +24,13 @@ def train_test_w(X_train, X_test, y_train, y_test, Thetastar):
     test_df['X1'] = X_test[:,1]
     
     # Well-specified train
-    what1_train, Thetahat1 = argmin_lopt_bar_argmin_lpred("lin", "Norm", X_train, Theta = None, y = y_train, input_type = "y", alg_type = "optimize")
-    what2_train, Thetahat2 = argmin_lopt_emp("lin", "Norm", X_train, Theta = None, y = y_train, input_type = "y", Thetastar = Thetastar)
+    what1_train, Thetahat1 = argmin_lopt_bar_argmin_lpred("lin", "Norm", X_train, Thetahat = None, y = y_train, input_type = "y", alg_type = "ols")
+    what2_train, Thetahat2 = argmin_lopt_emp("lin", "Norm", X_train, Thetahat = None, y = y_train, input_type = "y", Thetastar = Thetastar)
     #search_type = search_type? TypeError: cannot unpack non-iterable NoneType object
-
+    print("Thetahat1 ", Thetahat1)
     # Well-specified test
-    what1_test = argmin_lopt_bar_argmin_lpred("lin", "Norm", X_test, Theta = Thetahat1, y = None, input_type = "Theta")
-    what2_test = argmin_lopt_emp("lin", "Norm", X_test, Theta = Thetahat2, y = None, input_type = "Theta", Thetastar = Thetastar)
+    what1_test = argmin_lopt_bar_argmin_lpred("lin", "Norm", X_test, Thetahat = Thetahat1, y = None, input_type = "Theta", alg_type = "ols")
+    what2_test = argmin_lopt_emp("lin", "Norm", X_test, Thetahat = Thetahat2, y = None, input_type = "Theta", Thetastar = Thetastar)
     
     # save
     train_df['w1'] = what1_train
@@ -44,7 +44,7 @@ def train_test_w(X_train, X_test, y_train, y_test, Thetastar):
     # pd.read_pickle(f"train_{len(train_df)}.csv")
     # pd.read_pickle(f"test_{len(test_df)}.csv")
 
-    return train_df, test_df
+    return train_df, test_df, Thetahat1, Thetahat2
 
 def train_test_err_dep(X_train, X_test, y_w_train, y_w_test, y_m_train, y_m_test, Thetastar):
     '''

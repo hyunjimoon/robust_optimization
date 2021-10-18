@@ -11,58 +11,15 @@ import jax.numpy as jnp
 from loss import lopt_NV
 from generator import sim_y_barThetax, sim_ThetaXy, P_ybarx, check_random_state, make_low_rank_matrix
 
-def train_test_w(X_train, X_test, y_train, y_test, Thetastar):
-    '''
-    Receive feature and outcome for train and testset with ground_truth
-    Parameters:
-      char specification type: 
-            "well": generated with y_true = Theta' * X
-            "miss": generated with exp(theta*x)
-      real sigma_y: noise scale
-    Returns:
-      train, test error
-    '''
-    train_df = pd.DataFrame()
-    test_df = pd.DataFrame()   
-    train_df['meantrue'] = np.dot(X_train, Thetastar)
-    test_df['meantrue'] = np.dot(X_test, Thetastar)
-    train_df['X0'] = X_train[:,0]
-    train_df['X1'] = X_train[:,1]
-    test_df['X0'] = X_test[:,0]
-    test_df['X1'] = X_test[:,1]
-    
-    # Well-specified train
-    what1_train, Thetahat1 = argmin_lopt_bar_argmin_lpred("lin", "Norm", X_train, Theta = None, y = y_train, input_type = "y")
-    what2_train, Thetahat2 = argmin_lopt_emp("lin", "Norm", X_train, Theta = None, y = y_train, input_type = "y", Thetastar = Thetastar)
-    #search_type = search_type? TypeError: cannot unpack non-iterable NoneType object
-
-    # Well-specified test
-    what1_test = argmin_lopt_bar_argmin_lpred("lin", "Norm", X_test, Theta = Thetahat1, y = None, input_type = "Theta")
-    what2_test = argmin_lopt_emp("lin", "Norm", X_test, Theta = Thetahat2, y = None, input_type = "Theta", Thetastar = Thetastar)
-    
-    # save
-    train_df['w1'] = what1_train
-    train_df['w2'] = what2_train
-    test_df['w1'] = what1_test
-    test_df['w2'] = what2_test
-    
-    # todo pickle, hash
-    # train_df.to_pickle(f"train_{len(train_df)}.csv")
-    # test_df.to_pickle(f"train_{len(test_df)}.csv")
-    # pd.read_pickle(f"train_{len(train_df)}.csv")
-    # pd.read_pickle(f"test_{len(test_df)}.csv")
-
-    return train_df, test_df
-
 # approach 1 if y = None: W(Theta, X) else Thetahat, W(Thetahat, x)
-def argmin_lopt_bar_argmin_lpred(link, family, X, Theta, y, input_type, alg_type = "OLS"):
+def argmin_lopt_bar_argmin_lpred(link, family, X, Thetahat, y, input_type, alg_type):
     '''
     Compute approach1 optimal solution; separate predict optimize
     Parameters:
          char MClass: model class type specificed with `P_ybarx`
             "lin": y_true = theta' * X
             "quad": y_true = theta' * X^2
-          real Theta: coefficient vector of size [p, 1] 
+          real Thetahat: coefficient vector of size [p, 1] 
             "fixed"
             real value of Theta (computing trainset error)
           np.array X: predictor data of size [n, p] 
@@ -75,16 +32,16 @@ def argmin_lopt_bar_argmin_lpred(link, family, X, Theta, y, input_type, alg_type
     what = np.repeat(np.nan, len(X))
     if input_type == "Theta":
         for i in range(len(X)):
-            what[i] = argmin_lopt_gen(link, family, X[i], Theta)
+            what[i] = argmin_lopt_gen(link, family, X[i], Thetahat)
         return what
     else:
-        Thetahat1 = argmin_lpred(link, family, X, y, alg_type = alg_type)
+        Thetahat = argmin_lpred(link, family, X, y, alg_type = alg_type)
         for i in range(len(X)):
-            what[i] = argmin_lopt_gen(link, family, X[i], Thetahat1)
-        return what, Thetahat1
+            what[i] = argmin_lopt_gen(link, family, X[i], Thetahat)
+        return what, Thetahat
 
 # approach 2
-def argmin_lopt_emp(link, family, X, Theta, y, input_type, Thetastar = None, search_type = "grid"):
+def argmin_lopt_emp(link, family, X, Thetahat, y, input_type, Thetastar, search_type = "grid"):
     '''
     Compute approach2 optimal solution; empirical objective minimization
     Parameters:
@@ -92,8 +49,10 @@ def argmin_lopt_emp(link, family, X, Theta, y, input_type, Thetastar = None, sea
             "lin": y_true = Theta' * X
             "quad": y_true = x.transpose() @ Theta_mat @ x + Theta @ x
         char family: distribution type
-        array y: outcome data of size [n, 1]
         array X: predictor data of size [n, p]
+        vector Theta: estimated 
+        array y: outcome data of size [n, 1]
+
         char search_type: `grid`, `autodiff`
     Returns:
         array what: optimal solution for each x of size [n,1]
@@ -103,29 +62,30 @@ def argmin_lopt_emp(link, family, X, Theta, y, input_type, Thetastar = None, sea
     what = np.repeat(np.nan, len(X))
     if input_type == "Theta":
         for i in range(len(X)):
-            what[i] = argmin_lopt_gen(link, family, X[i], Theta)
+            what[i] = argmin_lopt_gen(link, family, X[i], Thetahat)
         return what
     else:
         if search_type == "grid":
-            def lopt_sim(link, family, X, Theta):
+            def lopt_sim(link, family, X, y, Thetahat):
                 '''
                 Loss when function is known upto P_Y|X^theta, but not w
                 '''
                 lopt = 0
                 for i in range(len(X)):
-                    what_x = argmin_lopt_gen(link, family, X[i], Theta)
+                    what_x = argmin_lopt_gen(link, family, X[i], Thetahat)
                     lopt -= (5 * min(what_x, y[i]) - 1 * what_x)
-                return lopt
-            theta1 = np.linspace(Thetastar[0]*.85, Thetastar[0]*1.15, num = 50)
-            theta2 = np.linspace(Thetastar[1]*.85, Thetastar[1]*1.15, num = 50)
+                return lopt/len(X)
+            theta1 = np.linspace(Thetastar[0]*.8, Thetastar[0]*1.2, num = 30)
+            theta2 = np.linspace(Thetastar[1]*.8, Thetastar[1]*1.2, num = 30)
             theta1, theta2 = np.meshgrid(theta1, theta2)
             M = 1000000
             for Theta in zip(theta1.ravel(), theta2.ravel()):
                 #lopt_NV(what, y[i], profit, cost) 'numpy.float64' object cannot be interpreted as an integer
-                if lopt_sim(link, family, X, Theta) < M:
-                    Thetahat2 = Theta
-                    M = lopt_sim(link, family, X, Theta)
-                    print("loss", lopt_sim(link, family, X, Theta),  "Thetastar", Thetastar, "theta", Thetahat2)
+                if lopt_sim(link, family, X, y, Theta) < M:
+                    Thetahat = Theta
+                    M = lopt_sim(link, family, X, y, Thetahat)
+            print("loss", M, "Thetahat2", Thetahat)
+            print("min_loss", lopt_sim(link, family, X, y, Thetastar), "Thetastar", Thetastar)
         elif search_type == "autodiff":
             def lopt_fn(param, X, y): #param = p*1, X:n*p, x= 1*p
                 '''
@@ -144,10 +104,10 @@ def argmin_lopt_emp(link, family, X, Theta, y, input_type, Thetastar = None, sea
                 loss, grads = jax.value_and_grad(lopt_fn)(get_params(opt_state), X, y)
                 opt_state = opt_update(i, grads, opt_state)
                 print("loss", loss, "Thetastar", Thetastar, "Thetahat", get_params(opt_state), "grads", grads)
-            Thetahat2 = get_params(opt_state)
+            Thetahat = get_params(opt_state)
         for i in range(len(X)):
-            what[i] = argmin_lopt_gen(link, family, X[i], Thetahat2)
-        return what, Thetahat2
+            what[i] = argmin_lopt_gen(link, family, X[i], Thetahat)
+        return what, Thetahat
 
 # plug-in opt.solver
 def argmin_lopt_gen(link, family, x, Theta, closed_type = "W_Theta", **kwargs):
@@ -208,4 +168,5 @@ def argmin_lpred(link, family, X, y, alg_type = "OLS"):
             Thetahat = sm.optimize(data).stan_variable('beta') # 2.00 , 1.98
         elif alg_type == "variational":
             Thetahat = np.mean(sm.sample(data).stan_variable('beta'), axis =0) # 1.99, 1.99
-    return Thetahat
+    #reg = LinearRegression(fit_intercept = False).fit(X, y)
+    return Thetahat #reg.coef_
